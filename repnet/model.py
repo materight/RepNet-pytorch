@@ -3,16 +3,15 @@ import torch
 from torch import nn
 from typing import Tuple
 
+
 # List of ResNet50V2 conv layers that uses bias in the tensorflow implementation
 RESNET_CONVS_WITH_BIAS = [
     'stem.conv',
-    'stages.0.blocks.0.conv3', 'stages.0.blocks.0.downsample.conv', 'stages.0.blocks.1.conv3', 'stages.0.blocks.2.conv3',
-    'stages.1.blocks.0.conv3', 'stages.1.blocks.0.downsample.conv', 'stages.1.blocks.1.conv3', 'stages.1.blocks.2.conv3', 'stages.1.blocks.3.conv3',
-    'stages.2.blocks.0.conv3', 'stages.2.blocks.0.downsample.conv', 'stages.2.blocks.1.conv3', 'stages.2.blocks.2.conv3', 
+    'stages.0.blocks.0.downsample.conv', 'stages.0.blocks.0.conv3', 'stages.0.blocks.1.conv3', 'stages.0.blocks.2.conv3',
+    'stages.1.blocks.0.downsample.conv', 'stages.1.blocks.0.conv3', 'stages.1.blocks.1.conv3', 'stages.1.blocks.2.conv3', 'stages.1.blocks.3.conv3',
+    'stages.2.blocks.0.downsample.conv', 'stages.2.blocks.0.conv3', 'stages.2.blocks.1.conv3', 'stages.2.blocks.2.conv3', 
 ]
 
-
-# TODO: add kernel regularizers
 class RepNet(nn.Module):
     """RepNet model."""
     def __init__(self, num_frames: int = 64, temperature: float = 13.544):
@@ -46,10 +45,28 @@ class RepNet(nn.Module):
         encoder.head.global_pool = nn.Identity()
         encoder.head.fc = nn.Identity()
         encoder.head.flatten = nn.Identity()
-        # Add missing bias to conv layers
+        # Change padding from -inf to 0 to have same beahvior as tensorflow
+        encoder.stem.pool.padding = 0
+        encoder.stem.pool = nn.Sequential(nn.ZeroPad2d((1, 1, 1, 1)), encoder.stem.pool)
+        # Change properties of existing layers
         for name, module in encoder.named_modules():
+            # Add missing bias to conv layers
             if name in RESNET_CONVS_WITH_BIAS:
                 module.bias = nn.Parameter(torch.zeros(module.out_channels))
+            # Change eps in batchnorm layers
+            if isinstance(module, nn.BatchNorm2d):
+                module.eps = 1.001e-5
+        # Chage stride and add max pooling to final block to have same beahvior as tensorflow
+        for stage in encoder.stages:
+            stage.blocks[-1].conv2.stride = (2, 2)
+            stage.blocks[-1].downsample = nn.MaxPool2d(1, stride=2)
+            # Change the input of max pooling to the raw input, before the pre-act block
+            graph = torch.fx.symbolic_trace(stage.blocks[-1]).graph
+            raw_input = next(iter(graph.nodes))
+            for node in graph.nodes:
+                if node.target == 'downsample':
+                    node.replace_input_with(node.all_input_nodes[0], raw_input)
+            stage.blocks[-1] = torch.fx.GraphModule(stage.blocks[-1], graph)
         return encoder
 
 
@@ -77,6 +94,7 @@ class RepNet(nn.Module):
         # Temporal convolution
         x = self.temporal_conv(x)
         x = x.movedim(1, 2) # Convert to N x D x C
+        embeddings = x
         # Compute temporal self-similarity matrix
         x = torch.cdist(x, x) # N x D x D
         x = -x / self.temperature
@@ -87,7 +105,7 @@ class RepNet(nn.Module):
         # Final prediction heads
         period_length = self.period_length_head(x)
         periodicity = self.periodicity_head(x)
-        return period_length, periodicity
+        return period_length, periodicity, embeddings
 
 
     @staticmethod
