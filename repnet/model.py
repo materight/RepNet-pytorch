@@ -5,12 +5,24 @@ from typing import Tuple
 
 
 # List of ResNet50V2 conv layers that uses bias in the tensorflow implementation
-RESNET_CONVS_WITH_BIAS = [
+CONVS_WITH_BIAS = [
     'stem.conv',
     'stages.0.blocks.0.downsample.conv', 'stages.0.blocks.0.conv3', 'stages.0.blocks.1.conv3', 'stages.0.blocks.2.conv3',
     'stages.1.blocks.0.downsample.conv', 'stages.1.blocks.0.conv3', 'stages.1.blocks.1.conv3', 'stages.1.blocks.2.conv3', 'stages.1.blocks.3.conv3',
     'stages.2.blocks.0.downsample.conv', 'stages.2.blocks.0.conv3', 'stages.2.blocks.1.conv3', 'stages.2.blocks.2.conv3', 
 ]
+
+# List of ResNet50V2 conv layers that uses stride 1 in the tensorflow implementation
+CONVS_WITHOUT_STRIDE = [
+    'stages.1.blocks.0.downsample.conv', 'stages.1.blocks.0.conv2',
+    'stages.2.blocks.0.downsample.conv', 'stages.2.blocks.0.conv2',
+]
+
+# List of ResNet50V2 conv layers that use max pooling instead of stride 2 in the tensorflow implementation
+FINAL_BLOCKS_WITH_MAX_POOL = [
+    'stages.0.blocks.2', 'stages.1.blocks.3',
+]
+
 
 class RepNet(nn.Module):
     """RepNet model."""
@@ -51,22 +63,21 @@ class RepNet(nn.Module):
         # Change properties of existing layers
         for name, module in encoder.named_modules():
             # Add missing bias to conv layers
-            if name in RESNET_CONVS_WITH_BIAS:
+            if name in CONVS_WITH_BIAS:
                 module.bias = nn.Parameter(torch.zeros(module.out_channels))
+            # Remove stride from the first block in the later stages
+            if name in CONVS_WITHOUT_STRIDE:
+                module.stride = (1, 1)
+            # Change stride and add max pooling to final block
+            if name in FINAL_BLOCKS_WITH_MAX_POOL:
+                module.conv2.stride = (2, 2)
+                module.downsample = nn.MaxPool2d(1, stride=2)
+                # Change the forward function so that the input of max pooling is the raw `x` instead of the pre-activation result
+                bound_method = _max_pool_block_forward.__get__(module, module.__class__)
+                setattr(module, 'forward', bound_method)
             # Change eps in batchnorm layers
             if isinstance(module, nn.BatchNorm2d):
                 module.eps = 1.001e-5
-        # Chage stride and add max pooling to final block to have same beahvior as tensorflow
-        for stage in encoder.stages:
-            stage.blocks[-1].conv2.stride = (2, 2)
-            stage.blocks[-1].downsample = nn.MaxPool2d(1, stride=2)
-            # Change the input of max pooling to the raw input, before the pre-act block
-            graph = torch.fx.symbolic_trace(stage.blocks[-1]).graph
-            raw_input = next(iter(graph.nodes))
-            for node in graph.nodes:
-                if node.target == 'downsample':
-                    node.replace_input_with(node.all_input_nodes[0], raw_input)
-            stage.blocks[-1] = torch.fx.GraphModule(stage.blocks[-1], graph)
         return encoder
 
 
@@ -138,3 +149,21 @@ class TranformerLayer(nn.Module):
         x = x + self.pos_encoding
         x = self.transformer_layer(x)
         return x
+
+
+
+
+def _max_pool_block_forward(self, x):
+    """ 
+    Custom `forward` function for the last block of each stage in ResNetV2, to have the same behavior as tensorflow.
+    Original implementation: https://github.com/huggingface/pytorch-image-models/blob/4b8cfa6c0a355a9b3cb2a77298b240213fb3b921/timm/models/resnetv2.py#L197
+    """
+    x_preact = self.norm1(x)
+    shortcut = x
+    if self.downsample is not None:
+        shortcut = self.downsample(x) # Changed here from `x_preact` to `x`
+    x = self.conv1(x_preact)
+    x = self.conv2(self.norm2(x))
+    x = self.conv3(self.norm3(x))
+    x = self.drop_path(x)
+    return x + shortcut

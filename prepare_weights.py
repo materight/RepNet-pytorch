@@ -176,7 +176,8 @@ if __name__ == '__main__':
             tf_state_dict[k] = {None: v}
 
     # Convert to a format compatible with PyTorch and save
-    print('Converting to PyTorch format...')
+    pt_checkpoint_path = os.path.abspath(os.path.join(checkpoints_dir, '..', 'converted_weights.pth'))
+    print(f'Converting to PyTorch format to {pt_checkpoint_path}...')
     pt_state_dict = {}
     for k_tf, _, k_pt in WEIGHTS_MAPPING:
         assert k_pt not in pt_state_dict
@@ -188,18 +189,17 @@ if __name__ == '__main__':
                 weights_permutation = WEIGHTS_PERMUTATION[pt_state_dict[k_pt][new_attr].ndim] # Permute weights if needed
                 pt_state_dict[k_pt][new_attr] = pt_state_dict[k_pt][new_attr].permute(weights_permutation)
     pt_state_dict = utils.flatten_dict(pt_state_dict, skip_none=True)
-    torch.save(pt_state_dict, os.path.join(checkpoints_dir, '..', 'converted_weights.pth'))
-
+    torch.save(pt_state_dict, pt_checkpoint_path)
 
     # Initialize the model and try to load the weights
     print('Loading weights into the model...')
     pt_model = RepNet()
-    pt_state_dict = torch.load(os.path.join(checkpoints_dir, '..', 'converted_weights.pth'))
+    pt_state_dict = torch.load(pt_checkpoint_path)
     pt_model.load_state_dict(pt_state_dict)
     pt_model.eval()
 
     # Test the model on a sample video from countix
-    print('Test the model on a sample video...')
+    print(f'Test the model on a sample video from {SAMPLE_VIDEO_URL}...')
     video_path = os.path.join(PROJECT_ROOT, 'videos', os.path.basename(SAMPLE_VIDEO_URL) + '.mp4')
     if not os.path.exists(video_path):
         os.makedirs(os.path.dirname(video_path), exist_ok=True)
@@ -233,7 +233,7 @@ if __name__ == '__main__':
         #period_length, periodicity, embeddings = pt_model(frames)
         #period_length, period_length_conf, periodicity = pt_model.get_scores(period_length, periodicity)
         graph_nodes = [k.replace('encoder.', '') for _,_, k in WEIGHTS_MAPPING if k.startswith('encoder')]
-        graph_nodes += ['stages.0.blocks.0', 'stages.0.blocks.1', 'stages.0.blocks.2', 'stages.0.blocks.2.downsample']
+        graph_nodes += ['stages.2.blocks.2']
         encoder = create_feature_extractor(pt_model.encoder, graph_nodes)
         layers_outs = encoder(frames.squeeze(0).movedim(0,1))
 
