@@ -101,11 +101,11 @@ WEIGHTS_MAPPING = [
     ('base_model.layer-116',              'conv4_block3_2_bn',      'encoder.stages.2.blocks.2.norm3'),
     ('base_model.layer-118',              'conv4_block3_3_conv',    'encoder.stages.2.blocks.2.conv3'),
     # Temporal convolution
-    ('temporal_conv_layers.0',            None,                     'temporal_conv.0'),
-    ('temporal_bn_layers.0',              None,                     'temporal_conv.1'),
-    ('conv_3x3_layer',                    None,                     'tsm_conv.0'),
+    ('temporal_conv_layers.0',            'conv3d',                 'temporal_conv.0'),
+    ('temporal_bn_layers.0',              'batch_normalization',    'temporal_conv.1'),
+    ('conv_3x3_layer',                    'conv2d',                 'tsm_conv.0'),
     # Period length head
-    ('input_projection',                  None,                     'period_length_head.0.input_projection'),
+    ('input_projection',                  'dense',                  'period_length_head.0.input_projection'),
     ('pos_encoding',                      None,                     'period_length_head.0.pos_encoding'),
     ('transformer_layers.0.ffn.layer-0',  None,                     'period_length_head.0.transformer_layer.linear1'),
     ('transformer_layers.0.ffn.layer-1',  None,                     'period_length_head.0.transformer_layer.linear2'),
@@ -118,7 +118,7 @@ WEIGHTS_MAPPING = [
     ('fc_layers.1',                       None,                     'period_length_head.3'),
     ('fc_layers.2',                       None,                     'period_length_head.5'),
     # Periodicity head
-    ('input_projection2',                 None,                     'periodicity_head.0.input_projection'),
+    ('input_projection2',                 'dense1',                 'periodicity_head.0.input_projection'),
     ('pos_encoding2',                     None,                     'periodicity_head.0.pos_encoding'),
     ('transformer_layers2.0.ffn.layer-0', None,                     'periodicity_head.0.transformer_layer.linear1'),
     ('transformer_layers2.0.ffn.layer-1', None,                     'periodicity_head.0.transformer_layer.linear2'),
@@ -232,23 +232,21 @@ if __name__ == '__main__':
         #embeddings = pt_model.encoder(frames.squeeze(0).movedim(0,1))
         #period_length, periodicity, embeddings = pt_model(frames)
         #period_length, period_length_conf, periodicity = pt_model.get_scores(period_length, periodicity)
-        graph_nodes = [k.replace('encoder.', '') for _,_, k in WEIGHTS_MAPPING if k.startswith('encoder')]
-        graph_nodes += ['stages.2.blocks.2']
-        encoder = create_feature_extractor(pt_model.encoder, graph_nodes)
-        layers_outs = encoder(frames.squeeze(0).movedim(0,1))
+        encoder = create_feature_extractor(pt_model, [n for n in get_graph_node_names(pt_model)[1] if not n.startswith('encoder')])
+        layers_outs = encoder(frames)
 
     # Load tf model
     from repnet.tf_model import get_repnet_model
     from keras import backend as K
     with tf.device('/cpu:0'):
         tf_model = get_repnet_model(checkpoints_dir)
-        #tf_embeddings = tf_model.base_model(frames.squeeze(0).movedim(0, -1)).numpy()
-        #tf_embeddings = np.moveaxis(tf_embeddings, -1, 1)
-        #tf_period_length, tf_periodicity, tf_embeddings = tf_model(frames.movedim(1, -1))
-        inps = tf_model.base_model.input
-        outs = [layer.output for layer in tf_model.base_model.layers]
+        #tf_period_length, tf_periodicity, tf_embeddings = tf_model(frames.movedim(1, -1).numpy())
+        inps = tf_model.input
+        relevant_layers = tf_model.layers[:2] + tf_model.layers[3:]
+        outs = [layer.output for layer in relevant_layers]
         functor = K.function([inps], outs)
-        tf_layers_outs = functor([frames.squeeze(0).movedim(0, -1)])
-        tf_layers_outs = {tf_model.base_model.layers[i].name: o for i, o in enumerate(tf_layers_outs)}
+        tf_layers_outs = functor([frames.movedim(1, -1).numpy()])
+        tf_layers_outs = {relevant_layers[i].name: o for i, o in enumerate(tf_layers_outs)}
 
+    # np.abs(tf_layers_outs['conv2d'].transpose(0,3, 1,2) - layers_outs['tsm_conv.1'].numpy()).max()
     print('Done')

@@ -33,7 +33,7 @@ class RepNet(nn.Module):
         self.encoder = self._init_encoder()
         self.temporal_conv = nn.Sequential(
             nn.Conv3d(1024, 512, kernel_size=3, dilation=(3, 1, 1), padding=(3, 1, 1)),
-            nn.BatchNorm3d(512),
+            nn.BatchNorm3d(512, eps=0.001),
             nn.ReLU(inplace=True),
             nn.AdaptiveMaxPool3d((None, 1, 1)),
             nn.Flatten(2, 4),
@@ -97,7 +97,7 @@ class RepNet(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass. Expected input shape: N x C x D x H x W."""
         batch_size, _, seq_len, _, _ = x.shape
-        assert seq_len == self.num_frames, f'Expected {self.num_frames} frames, got {seq_len}'
+        torch._assert(seq_len == self.num_frames, f'Expected {self.num_frames} frames, got {seq_len}')
         # Extract features frame-by-frame
         x = x.movedim(1, 2).flatten(0, 1)
         x = self.encoder(x)
@@ -107,9 +107,9 @@ class RepNet(nn.Module):
         x = x.movedim(1, 2) # Convert to N x D x C
         embeddings = x
         # Compute temporal self-similarity matrix
-        x = torch.cdist(x, x) # N x D x D
+        x = torch.cdist(x, x)**2 # N x D x D
         x = -x / self.temperature
-        x = x.softmax(dim=1)
+        x = x.softmax(dim=-1)
         # Conv layer on top of the TSM
         x = self.tsm_conv(x.unsqueeze(1))
         x = x.reshape(batch_size, seq_len, -1) # Flatten channels into N x D x C
@@ -140,7 +140,7 @@ class TranformerLayer(nn.Module):
         self.pos_encoding = nn.Parameter(torch.normal(mean=0, std=0.02, size=(1, num_frames, 1)))
         self.transformer_layer = nn.TransformerEncoderLayer(
             d_model=out_features, nhead=n_head, dim_feedforward=out_features,
-            batch_first=True, norm_first=True
+            layer_norm_eps=1e-6, batch_first=True, norm_first=True
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

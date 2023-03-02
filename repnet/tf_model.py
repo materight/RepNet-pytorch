@@ -158,9 +158,9 @@ class ResnetPeriodEstimator(tf.keras.models.Model):
     h = tf.shape(x)[1]
     w = tf.shape(x)[2]
     c = tf.shape(x)[3]
-    x = tf.reshape(x, [batch_size, -1, h, w, c])
+    x = tf.reshape(x, [batch_size, self.num_frames, h, w, c])
 
-    # 3D Conv to give temporal context to per-frame embeddings. 
+    # 3D Conv to give temporal context to per-frame embeddings.
     for bn_layer, conv_layer in zip(self.temporal_bn_layers,
                                     self.temporal_conv_layers):
       x = conv_layer(x)
@@ -177,7 +177,7 @@ class ResnetPeriodEstimator(tf.keras.models.Model):
 
     # 3x3 conv layer on self-similarity matrix.
     x = self.conv_3x3_layer(x)
-    x = tf.reshape(x, [batch_size, self.num_frames, -1])
+    x = tf.reshape(x, [batch_size, self.num_frames, x.shape[2]*x.shape[3]])
     within_period_x = x
 
     # Period prediction.
@@ -185,7 +185,7 @@ class ResnetPeriodEstimator(tf.keras.models.Model):
     x += self.pos_encoding
     for transformer_layer in self.transformer_layers:
       x = transformer_layer(x)
-    x = flatten_sequential_feats(x, batch_size, self.num_frames)
+    #x = flatten_sequential_feats(x, batch_size, self.num_frames)
     for fc_layer in self.fc_layers:
       x = self.dropout_layer(x)
       x = fc_layer(x)
@@ -195,9 +195,7 @@ class ResnetPeriodEstimator(tf.keras.models.Model):
     within_period_x += self.pos_encoding2
     for transformer_layer in self.transformer_layers2:
       within_period_x = transformer_layer(within_period_x)
-    within_period_x = flatten_sequential_feats(within_period_x,
-                                               batch_size,
-                                               self.num_frames)
+    #within_period_x = flatten_sequential_feats(within_period_x,batch_size,self.num_frames)
     for fc_layer in self.within_period_fc_layers:
       within_period_x = self.dropout_layer(within_period_x)
       within_period_x = fc_layer(within_period_x)
@@ -227,7 +225,8 @@ def get_sims(embs, temperature):
     sims = -1.0 * dist
     return sims
 
-  sims = tf.map_fn(_get_sims, embs)
+  sims = tf.keras.layers.Lambda(lambda x: tf.map_fn(_get_sims, x))(embs)
+  #sims = tf.map_fn(_get_sims, embs)
   sims /= temperature
   sims = tf.nn.softmax(sims, axis=-1)
   sims = tf.expand_dims(sims, -1)
@@ -428,7 +427,7 @@ def get_repnet_model(logdir):
   model = ResnetPeriodEstimator()
   # tf.function for speed.
 
-  model.call = tf.function(model.call)
+  #model.call = tf.function(model.call)
 
   # Define checkpoint and checkpoint manager.
   ckpt = tf.train.Checkpoint(model=model)
@@ -442,7 +441,10 @@ def get_repnet_model(logdir):
   ckpt.restore(latest_ckpt).expect_partial()
 
   # Pass dummy frames to build graph.
-  model(tf.random.uniform((1, 64, 112, 112, 3)))
+  #model.call(tf.random.uniform((1, 64, 112, 112, 3)))
+  inputs = tf.keras.Input(shape=(64, 112, 112, 3), name='global_repnet_input')
+  outputs = model.call(inputs)
+  model = tf.keras.Model(inputs=inputs, outputs=outputs)
   return model
 
 
