@@ -229,24 +229,16 @@ if __name__ == '__main__':
     with torch.no_grad():
         frames = torch.from_numpy(np.stack(frames, axis=0)).float()
         frames = frames[::stride][:64].unsqueeze(0).movedim(1, 2)
-        #embeddings = pt_model.encoder(frames.squeeze(0).movedim(0,1))
-        #period_length, periodicity, embeddings = pt_model(frames)
-        #period_length, period_length_conf, periodicity = pt_model.get_scores(period_length, periodicity)
-        encoder = create_feature_extractor(pt_model, [n for n in get_graph_node_names(pt_model)[1] if not n.startswith('encoder')])
-        layers_outs = encoder(frames)
+        period_length, periodicity, embeddings = pt_model(frames)
+        period_length, period_length_conf, periodicity = pt_model.get_scores(period_length, periodicity)
 
     # Load tf model
-    from repnet.tf_model import get_repnet_model
+    from repnet.tf_model import get_repnet_model, get_counts
     from keras import backend as K
     with tf.device('/cpu:0'):
         tf_model = get_repnet_model(checkpoints_dir)
-        #tf_period_length, tf_periodicity, tf_embeddings = tf_model(frames.movedim(1, -1).numpy())
-        inps = tf_model.input
-        relevant_layers = tf_model.layers[:2] + tf_model.layers[3:]
-        outs = [layer.output for layer in relevant_layers]
-        functor = K.function([inps], outs)
-        tf_layers_outs = functor([frames.movedim(1, -1).numpy()])
-        tf_layers_outs = {relevant_layers[i].name: o for i, o in enumerate(tf_layers_outs)}
+        tf_model.num_frames = 64
+        tf_model.image_size = 112
+        pred_period, pred_score, within_period, per_frame_counts, chosen_stride = get_counts(tf_model, frames.movedim(1, -1).numpy(), strides=[1], batch_size=1, threshold=0.5, within_period_threshold=0.5)
 
-    # np.abs(tf_layers_outs['dense'] - layers_outs['period_length_head.0.input_projection'].numpy()).max()
     print('Done')

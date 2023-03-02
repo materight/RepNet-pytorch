@@ -814,23 +814,22 @@ def get_counts(model, frames, strides, batch_size,
   if fully_periodic:
     within_period_threshold = 0.0
 
-  frames = model.preprocess(frames)
+  #frames = model.preprocess(frames)
 
   for stride in strides:
     num_batches = int(np.ceil(seq_len/model.num_frames/stride/batch_size))
     raw_scores_per_stride = []
     within_period_score_stride = []
     for batch_idx in range(num_batches):
-      idxes = tf.range(batch_idx*batch_size*model.num_frames*stride,
-                       (batch_idx+1)*batch_size*model.num_frames*stride,
-                       stride)
-      idxes = tf.clip_by_value(idxes, 0, seq_len-1)
-      curr_frames = tf.gather(frames, idxes)
-      curr_frames = tf.reshape(
-          curr_frames,
-          [batch_size, model.num_frames, model.image_size, model.image_size, 3])
-
-      raw_scores, within_period_scores, _ = model(curr_frames)
+      # idxes = tf.range(batch_idx*batch_size*model.num_frames*stride,
+      #                  (batch_idx+1)*batch_size*model.num_frames*stride,
+      #                  stride)
+      # idxes = tf.clip_by_value(idxes, 0, seq_len-1)
+      # curr_frames = tf.gather(frames, idxes)
+      # curr_frames = tf.reshape(
+      #     curr_frames,
+      #     [batch_size, model.num_frames, model.image_size, model.image_size, 3])
+      raw_scores, within_period_scores, _ = model(frames[batch_idx][None,...])
       raw_scores_per_stride.append(np.reshape(raw_scores.numpy(),
                                               [-1, model.num_frames//2]))
       within_period_score_stride.append(np.reshape(within_period_scores.numpy(),
