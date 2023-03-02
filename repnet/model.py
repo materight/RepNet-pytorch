@@ -51,13 +51,12 @@ class RepNet(nn.Module):
         """Initialize the encoder network using ResNet50 V2."""
         encoder = torch.hub.load('huggingface/pytorch-image-models', 'resnetv2_50')
         # Remove unused layers
-        del encoder.stages[2].blocks[3:6]
-        del encoder.stages[3]
+        del encoder.stages[2].blocks[3:6], encoder.stages[3]
         encoder.norm = nn.Identity()
         encoder.head.global_pool = nn.Identity()
         encoder.head.fc = nn.Identity()
         encoder.head.flatten = nn.Identity()
-        # Change padding from -inf to 0 to have same beahvior as tensorflow
+        # Change padding from -inf to 0 on max pool to have the same behavior as tensorflow
         encoder.stem.pool.padding = 0
         encoder.stem.pool = nn.Sequential(nn.ZeroPad2d((1, 1, 1, 1)), encoder.stem.pool)
         # Change properties of existing layers

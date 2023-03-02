@@ -116,7 +116,7 @@ WEIGHTS_MAPPING = [
     ('transformer_layers.0.mha.dense',    None,                     'period_length_head.0.transformer_layer.self_attn.out_proj'),
     ('fc_layers.0',                       'dense_14',               'period_length_head.1'),
     ('fc_layers.1',                       'dense_15',               'period_length_head.3'),
-    ('fc_layers.2',                       'dense_16'                'period_length_head.5'),
+    ('fc_layers.2',                       'dense_16',               'period_length_head.5'),
     # Periodicity head
     ('input_projection2',                 'dense_1',                'periodicity_head.0.input_projection'),
     ('pos_encoding2',                     None,                     'periodicity_head.0.pos_encoding'),
