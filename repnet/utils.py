@@ -1,5 +1,6 @@
 """Utility functions."""
 import os
+import shutil
 import requests
 from pytube import YouTube
 
@@ -24,10 +25,17 @@ def flatten_dict(dictionary: dict, parent_key: str = '', sep: str = '.', keep_la
 def download_file(url: str, dst: str):
     """Download a file from a given url."""
     if 'www.youtube.com' in url:
+        # Download video from YouTube
         yt_object = YouTube(url)
         output_dir, output_file = os.path.split(dst)
         yt_object.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').first().download(output_dir, output_file)
-    else:
-        response = requests.get(url)
+    elif url.startswith('http://') or url.startswith('https://'):
+        # Download file from HTTP
+        response = requests.get(url, timeout=10)
         with open(dst, 'wb') as file:
             file.write(response.content)
+    elif os.path.exists(url) and os.path.isfile(url):
+        # Copy file from local path
+        shutil.copyfile(url, dst)
+    else:
+        raise ValueError(f'Invalid url: {url}')

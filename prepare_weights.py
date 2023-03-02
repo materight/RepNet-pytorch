@@ -1,6 +1,7 @@
 """Script to download th epre-trained tensorflow weights and convert them to pytorch weights."""
 import os
 import cv2
+import argparse
 import torch
 import torchvision.transforms as T
 import numpy as np
@@ -10,11 +11,12 @@ from tensorflow.python.training import py_checkpoint_reader
 from repnet import utils
 from repnet.model import RepNet
 
+
 # Relevant paths
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 CHECKPOINT_BASE_URL = 'https://storage.googleapis.com/repnet_ckpt'
 CHECKPOINT_FILES = ['checkpoint', 'ckpt-88.data-00000-of-00002', 'ckpt-88.data-00001-of-00002', 'ckpt-88.index']
-SAMPLE_VIDEO_URL = 'https://www.youtube.com/watch?v=-Q3_7T5w4nE'
+CHECKPOINT_DIR = os.path.join(PROJECT_ROOT, 'checkpoints', 'tf_checkpoint')
 
 # Mapping of ndim -> permutation to go from tf to pytorch
 WEIGHTS_PERMUTATION = {
@@ -132,28 +134,35 @@ WEIGHTS_MAPPING = [
     ('within_period_fc_layers.2',         'dense_19',               'periodicity_head.5'),
 ]
 
+# Script arguments
+parser = argparse.ArgumentParser(description='Download and convert the pre-trained weights from tensorflow to pytorch.')
+parser.add_argument('--output', '-o', type=str, default=os.path.join(PROJECT_ROOT, 'checkpoints'), help='Path to the output directory to store the weights (default: %(default)s).')
+parser.add_argument('--sample', type=str, default='https://www.youtube.com/watch?v=-Q3_7T5w4nE', help='Video to test the model on, either a YouTube/http/local path (default: %(default)s). If None, no test is performed.')
+parser.add_argument('--device', type=str, default='cpu', help='Device to use for inference (default: %(default)s).')
+parser.add_argument('--stride', type=int, default=1, help='Temporal stride to use when testing on the sample video (default: %(default)s).')
+
 
 if __name__ == '__main__':
-    # Download checkpoints
+    args = parser.parse_args()
+
+    # Download tensorflow checkpoints
     print('Downloading checkpoints...')
-    checkpoints_dir = os.path.join(PROJECT_ROOT, 'checkpoints', 'tf_checkpoint')
-    os.makedirs(checkpoints_dir, exist_ok=True)
+    os.makedirs(CHECKPOINT_DIR, exist_ok=True)
     for file in CHECKPOINT_FILES:
-        dst = os.path.join(checkpoints_dir, file)
+        dst = os.path.join(CHECKPOINT_DIR, file)
         if not os.path.exists(dst):
             utils.download_file(f'{CHECKPOINT_BASE_URL}/{file}', dst)
 
     # Load tensorflow weights into a dictionary
     print('Loading tensorflow checkpoint...')
-    checkpoint_path = os.path.join(checkpoints_dir, 'ckpt-88')
+    checkpoint_path = os.path.join(CHECKPOINT_DIR, 'ckpt-88')
     checkpoint_reader = py_checkpoint_reader.NewCheckpointReader(checkpoint_path)
     shape_map = checkpoint_reader.get_variable_to_shape_map()
     tf_state_dict = {}
     for var_name in sorted(shape_map.keys()):
         var_tensor = checkpoint_reader.get_tensor(var_name)
         if not var_name.startswith('model') or '.OPTIMIZER_SLOT' in var_name:
-            # Skip variables that are not part of the model
-            continue
+            continue # Skip variables that are not part of the model, e.g. from the optimizer
         # Split var_name into path
         var_path = var_name.split('/')[1:]  # Remove `model`` key from the path
         var_path = [p for p in var_path if p not in ['.ATTRIBUTES', 'VARIABLE_VALUE']]
@@ -176,7 +185,7 @@ if __name__ == '__main__':
             tf_state_dict[k] = {None: v}
 
     # Convert to a format compatible with PyTorch and save
-    pt_checkpoint_path = os.path.abspath(os.path.join(checkpoints_dir, '..', 'converted_weights.pth'))
+    pt_checkpoint_path = os.path.join(args.output, 'converted_weights.pth')
     print(f'Converting to PyTorch format to {pt_checkpoint_path}...')
     pt_state_dict = {}
     for k_tf, _, k_pt in WEIGHTS_MAPPING:
@@ -193,52 +202,57 @@ if __name__ == '__main__':
 
     # Initialize the model and try to load the weights
     print('Loading weights into the model...')
-    pt_model = RepNet()
+    model = RepNet()
     pt_state_dict = torch.load(pt_checkpoint_path)
-    pt_model.load_state_dict(pt_state_dict)
-    pt_model.eval()
+    model.load_state_dict(pt_state_dict)
+    model.eval()
 
-    # Test the model on a sample video from countix
-    print(f'Test the model on a sample video from {SAMPLE_VIDEO_URL}...')
-    video_path = os.path.join(PROJECT_ROOT, 'videos', os.path.basename(SAMPLE_VIDEO_URL) + '.mp4')
-    if not os.path.exists(video_path):
-        os.makedirs(os.path.dirname(video_path), exist_ok=True)
-        utils.download_file(SAMPLE_VIDEO_URL, video_path)
+    # Test the model on the sample video
+    if args.sample is not None:
+        print(f'Test the model on a sample video from {args.sample}...')
+        video_path = os.path.join(PROJECT_ROOT, 'videos', os.path.basename(args.sample) + '.mp4')
+        if not os.path.exists(video_path):
+            os.makedirs(os.path.dirname(video_path), exist_ok=True)
+            utils.download_file(args.sample, video_path)
 
-    # Read frames
-    stride = 5
-    transform = T.Compose([
-        T.ToPILImage(),
-        T.Resize((112, 112)),
-        T.ToTensor(),
-        T.Normalize(mean=0.5, std=0.5),
-    ])
-    cap = cv2.VideoCapture(video_path)
-    frames = []
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret or frame is None:
-            break
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frame = transform(frame)
-        frames.append(frame)
-    cap.release()
+        # Read frames
+        transform = T.Compose([
+            T.ToPILImage(),
+            T.Resize((112, 112)),
+            T.ToTensor(),
+            T.Normalize(mean=0.5, std=0.5),
+        ])
+        cap = cv2.VideoCapture(video_path)
+        frames = []
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                break
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = transform(frame)
+            frames.append(frame)
+        cap.release()
 
-    # Get counts
-    from torchvision.models.feature_extraction import get_graph_node_names, create_feature_extractor
-    with torch.no_grad():
-        frames = torch.from_numpy(np.stack(frames, axis=0)).float()
-        frames = frames[::stride][:64].unsqueeze(0).movedim(1, 2)
-        period_length, periodicity, embeddings = pt_model(frames)
-        period_length, period_length_conf, periodicity = pt_model.get_scores(period_length, periodicity)
+        # Apply stride and limit the number of frames to 64 multiples
+        frames = torch.stack(frames[::args.stride], axis=0)
+        assert len(frames) >= 64, 'The video is too short, at least 64 frames are needed. Please use a longer video or a smaller stride.'
+        frames = frames[:(len(frames) // 64) * 64]
+        frames = frames.unflatten(0, (64, -1)).permute(1, 2, 0, 3, 4) # Convert to N x C x D x H x W
 
-    # Load tf model
-    from repnet.tf_model import get_repnet_model, get_counts
-    from keras import backend as K
-    with tf.device('/cpu:0'):
-        tf_model = get_repnet_model(checkpoints_dir)
-        tf_model.num_frames = 64
-        tf_model.image_size = 112
-        pred_period, pred_score, within_period, per_frame_counts, chosen_stride = get_counts(tf_model, frames.movedim(1, -1).numpy(), strides=[1], batch_size=1, threshold=0.5, within_period_threshold=0.5)
+        # Get counts
+        model, frames = model.to(args.device), frames.to(args.device)
+        with torch.no_grad():
+            for i in range(frames.shape[0]):  # Process each batch separately to avoid OOM
+                period_length, periodicity, embeddings = model(frames[i].unsqueeze(0))
+                period_length, period_length_conf, periodicity = model.get_scores(period_length, periodicity)
+
+        # Load tf model
+        from repnet.tf_model import get_repnet_model, get_counts
+        from keras import backend as K
+        with tf.device('/cpu:0'):
+            tf_model = get_repnet_model(CHECKPOINT_DIR)
+            tf_model.num_frames = 64
+            tf_model.image_size = 112
+            pred_period, pred_score, within_period, per_frame_counts, chosen_stride = get_counts(tf_model, frames.movedim(1, -1).numpy(), strides=[1], batch_size=1, threshold=0.5, within_period_threshold=0.5)
 
     print('Done')
