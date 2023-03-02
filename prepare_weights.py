@@ -114,11 +114,11 @@ WEIGHTS_MAPPING = [
     ('transformer_layers.0.mha.w_weight', None,                     'period_length_head.0.transformer_layer.self_attn.in_proj_weight'),
     ('transformer_layers.0.mha.w_bias',   None,                     'period_length_head.0.transformer_layer.self_attn.in_proj_bias'),
     ('transformer_layers.0.mha.dense',    None,                     'period_length_head.0.transformer_layer.self_attn.out_proj'),
-    ('fc_layers.0',                       None,                     'period_length_head.1'),
-    ('fc_layers.1',                       None,                     'period_length_head.3'),
-    ('fc_layers.2',                       None,                     'period_length_head.5'),
+    ('fc_layers.0',                       'dense_14',               'period_length_head.1'),
+    ('fc_layers.1',                       'dense_15',               'period_length_head.3'),
+    ('fc_layers.2',                       'dense_16'                'period_length_head.5'),
     # Periodicity head
-    ('input_projection2',                 'dense1',                 'periodicity_head.0.input_projection'),
+    ('input_projection2',                 'dense_1',                'periodicity_head.0.input_projection'),
     ('pos_encoding2',                     None,                     'periodicity_head.0.pos_encoding'),
     ('transformer_layers2.0.ffn.layer-0', None,                     'periodicity_head.0.transformer_layer.linear1'),
     ('transformer_layers2.0.ffn.layer-1', None,                     'periodicity_head.0.transformer_layer.linear2'),
@@ -127,9 +127,9 @@ WEIGHTS_MAPPING = [
     ('transformer_layers2.0.mha.w_weight',None,                     'periodicity_head.0.transformer_layer.self_attn.in_proj_weight'),
     ('transformer_layers2.0.mha.w_bias',  None,                     'periodicity_head.0.transformer_layer.self_attn.in_proj_bias'),
     ('transformer_layers2.0.mha.dense',   None,                     'periodicity_head.0.transformer_layer.self_attn.out_proj'),
-    ('within_period_fc_layers.0',         None,                     'periodicity_head.1'),
-    ('within_period_fc_layers.1',         None,                     'periodicity_head.3'),
-    ('within_period_fc_layers.2',         None,                     'periodicity_head.5'),
+    ('within_period_fc_layers.0',         'dense_17',               'periodicity_head.1'),
+    ('within_period_fc_layers.1',         'dense_18',               'periodicity_head.3'),
+    ('within_period_fc_layers.2',         'dense_19',               'periodicity_head.5'),
 ]
 
 
