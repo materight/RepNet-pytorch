@@ -121,11 +121,14 @@ class RepNet(nn.Module):
     @staticmethod
     def get_scores(raw_period_length: torch.Tensor, raw_periodicity: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Compute the final scores from the period length and periodicity predictions."""
-        periodicity = torch.sigmoid(raw_periodicity).squeeze(-1)
+        periodicity_score = torch.sigmoid(raw_periodicity).squeeze(-1)
         raw_period_length = torch.softmax(raw_period_length, dim=-1)
-        period_length_conf, period_length = torch.max(raw_period_length, dim=-1)
+        period_length_confidence, period_length = torch.max(raw_period_length, dim=-1)
         period_length += 1
-        return period_length, period_length_conf, periodicity
+        period_length_confidence[period_length < 3] = 0
+        periodicity_score *= torch.sqrt(period_length_confidence)
+        return period_length, period_length_confidence, periodicity_score
+
 
 
 

@@ -8,15 +8,23 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.training import py_checkpoint_reader
 
-from repnet import utils
+from repnet import utils, plots
 from repnet.model import RepNet
 
 
 # Relevant paths
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-CHECKPOINT_BASE_URL = 'https://storage.googleapis.com/repnet_ckpt'
-CHECKPOINT_FILES = ['checkpoint', 'ckpt-88.data-00000-of-00002', 'ckpt-88.data-00001-of-00002', 'ckpt-88.index']
-CHECKPOINT_DIR = os.path.join(PROJECT_ROOT, 'checkpoints', 'tf_checkpoint')
+TF_CHECKPOINT_BASE_URL = 'https://storage.googleapis.com/repnet_ckpt'
+TF_CHECKPOINT_FILES = ['checkpoint', 'ckpt-88.data-00000-of-00002', 'ckpt-88.data-00001-of-00002', 'ckpt-88.index']
+OUT_CHECKPOINTS_DIR = os.path.join(PROJECT_ROOT, 'checkpoints')
+OUT_VISUALIZATIONS_DIR = os.path.join(PROJECT_ROOT, 'visualizations')
+SAMPLE_VIDEOS_URLS = [
+    'https://www.reddit.com/r/gifs/comments/4qfif6/cheetah_running_at_63_mph_102_kph', # Cheetah
+    'https://www.youtube.com/watch?v=-Q3_7T5w4nE', # Excersise 1
+    'https://www.youtube.com/watch?v=5EYY2J3nb5c', # Excersise 2
+    'https://imgur.com/t/hummingbird/m2e2Nfa', # Hummingbird
+    'https://www.youtube.com/watch?v=5g1T-ff07kM', # Cooking
+]
 
 # Mapping of ndim -> permutation to go from tf to pytorch
 WEIGHTS_PERMUTATION = {
@@ -136,8 +144,7 @@ WEIGHTS_MAPPING = [
 
 # Script arguments
 parser = argparse.ArgumentParser(description='Download and convert the pre-trained weights from tensorflow to pytorch.')
-parser.add_argument('--output', '-o', type=str, default=os.path.join(PROJECT_ROOT, 'checkpoints'), help='Path to the output directory to store the weights (default: %(default)s).')
-parser.add_argument('--sample', type=str, default='https://www.youtube.com/watch?v=-Q3_7T5w4nE', help='Video to test the model on, either a YouTube/http/local path (default: %(default)s). If None, no test is performed.')
+parser.add_argument('--sample', type=str, default=SAMPLE_VIDEOS_URLS[0], help='Video to test the model on, either a YouTube/http/local path (default: %(default)s). If None, no test is performed.')
 parser.add_argument('--device', type=str, default='cpu', help='Device to use for inference (default: %(default)s).')
 parser.add_argument('--stride', type=int, default=1, help='Temporal stride to use when testing on the sample video (default: %(default)s).')
 
@@ -147,15 +154,16 @@ if __name__ == '__main__':
 
     # Download tensorflow checkpoints
     print('Downloading checkpoints...')
-    os.makedirs(CHECKPOINT_DIR, exist_ok=True)
-    for file in CHECKPOINT_FILES:
-        dst = os.path.join(CHECKPOINT_DIR, file)
+    tf_checkpoint_dir = os.path.join(OUT_CHECKPOINTS_DIR, 'tf_checkpoint')
+    os.makedirs(tf_checkpoint_dir, exist_ok=True)
+    for file in TF_CHECKPOINT_FILES:
+        dst = os.path.join(tf_checkpoint_dir, file)
         if not os.path.exists(dst):
-            utils.download_file(f'{CHECKPOINT_BASE_URL}/{file}', dst)
+            utils.download_file(f'{TF_CHECKPOINT_BASE_URL}/{file}', dst)
 
     # Load tensorflow weights into a dictionary
     print('Loading tensorflow checkpoint...')
-    checkpoint_path = os.path.join(CHECKPOINT_DIR, 'ckpt-88')
+    checkpoint_path = os.path.join(tf_checkpoint_dir, 'ckpt-88')
     checkpoint_reader = py_checkpoint_reader.NewCheckpointReader(checkpoint_path)
     shape_map = checkpoint_reader.get_variable_to_shape_map()
     tf_state_dict = {}
@@ -185,7 +193,7 @@ if __name__ == '__main__':
             tf_state_dict[k] = {None: v}
 
     # Convert to a format compatible with PyTorch and save
-    pt_checkpoint_path = os.path.join(args.output, 'converted_weights.pth')
+    pt_checkpoint_path = os.path.join(OUT_CHECKPOINTS_DIR, 'converted_weights.pth')
     print(f'Converting to PyTorch format to {pt_checkpoint_path}...')
     pt_state_dict = {}
     for k_tf, _, k_pt in WEIGHTS_MAPPING:
@@ -237,20 +245,32 @@ if __name__ == '__main__':
         frames = torch.stack(frames[::args.stride], axis=0)
         assert len(frames) >= 64, 'The video is too short, at least 64 frames are needed. Please use a longer video or a smaller stride.'
         frames = frames[:(len(frames) // 64) * 64]
-        frames = frames.unflatten(0, (64, -1)).permute(1, 2, 0, 3, 4) # Convert to N x C x D x H x W
+        frames = frames.unflatten(0, (-1, 64)).movedim(1, 2) # Convert to N x C x D x H x W
 
         # Get counts
         model, frames = model.to(args.device), frames.to(args.device)
+        period_length, periodicity_score, embeddings = [], [], []
         with torch.no_grad():
             for i in range(frames.shape[0]):  # Process each batch separately to avoid OOM
-                period_length, periodicity, embeddings = model(frames[i].unsqueeze(0))
-                period_length, period_length_conf, periodicity = model.get_scores(period_length, periodicity)
+                batch_period_length, batch_periodicity, batch_embeddings = model(frames[i].unsqueeze(0))
+                period_length.append(batch_period_length[0].cpu())
+                periodicity_score.append(batch_periodicity[0].cpu())
+                embeddings.append(batch_embeddings[0].cpu())
+        period_length, periodicity_score, embeddings = torch.cat(period_length), torch.cat(periodicity_score), torch.cat(embeddings)
+        period_length, period_length_confidence, periodicity_score = model.get_scores(period_length, periodicity_score)
+
+        # Generate plots and videos
+        print('Generating plots and result video...')
+        os.makedirs(OUT_VISUALIZATIONS_DIR, exist_ok=True)
+        dist = torch.cdist(embeddings, embeddings, p=2) ** 2
+        tsm_img = plots.plot_heatmap(dist.numpy(), log_scale=True)
+        cv2.imwrite(os.path.join(OUT_VISUALIZATIONS_DIR, 'tsm.png'), tsm_img)
 
         # Load tf model
         from repnet.tf_model import get_repnet_model, get_counts
         from keras import backend as K
         with tf.device('/cpu:0'):
-            tf_model = get_repnet_model(CHECKPOINT_DIR)
+            tf_model = get_repnet_model(tf_checkpoint_dir)
             tf_model.num_frames = 64
             tf_model.image_size = 112
             pred_period, pred_score, within_period, per_frame_counts, chosen_stride = get_counts(tf_model, frames.movedim(1, -1).numpy(), strides=[1], batch_size=1, threshold=0.5, within_period_threshold=0.5)

@@ -2,7 +2,7 @@
 import os
 import shutil
 import requests
-from pytube import YouTube
+import yt_dlp
 
 
 
@@ -22,13 +22,13 @@ def flatten_dict(dictionary: dict, parent_key: str = '', sep: str = '.', keep_la
 
 
 
+YOUTUB_DL_DOMAINS = ['youtube.com', 'imgur.com', 'reddit.com']
 def download_file(url: str, dst: str):
     """Download a file from a given url."""
-    if 'www.youtube.com' in url:
+    if any(domain in url for domain in YOUTUB_DL_DOMAINS):
         # Download video from YouTube
-        yt_object = YouTube(url)
-        output_dir, output_file = os.path.split(dst)
-        yt_object.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').first().download(output_dir, output_file)
+        with yt_dlp.YoutubeDL(dict(format='bestvideo[ext=mp4]/mp4', outtmpl=dst, quiet=True)) as ydl:
+            ydl.download([url])
     elif url.startswith('http://') or url.startswith('https://'):
         # Download file from HTTP
         response = requests.get(url, timeout=10)
