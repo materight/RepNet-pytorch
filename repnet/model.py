@@ -139,7 +139,7 @@ class TranformerLayer(nn.Module):
         self.input_projection = nn.Linear(in_features, out_features)
         self.pos_encoding = nn.Parameter(torch.normal(mean=0, std=0.02, size=(1, num_frames, 1)))
         self.transformer_layer = nn.TransformerEncoderLayer(
-            d_model=out_features, nhead=n_head, dim_feedforward=out_features,
+            d_model=out_features, nhead=n_head, dim_feedforward=out_features, activation='relu',
             layer_norm_eps=1e-6, batch_first=True, norm_first=True
         )
 
