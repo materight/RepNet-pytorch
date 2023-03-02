@@ -19,11 +19,11 @@ TF_CHECKPOINT_FILES = ['checkpoint', 'ckpt-88.data-00000-of-00002', 'ckpt-88.dat
 OUT_CHECKPOINTS_DIR = os.path.join(PROJECT_ROOT, 'checkpoints')
 OUT_VISUALIZATIONS_DIR = os.path.join(PROJECT_ROOT, 'visualizations')
 SAMPLE_VIDEOS_URLS = [
+    'https://www.youtube.com/watch?v=-Q3_7T5w4nE', # Excersise 1 
+    'https://www.youtube.com/watch?v=5g1T-ff07kM', # Excersise 2
+    'https://www.youtube.com/watch?v=5EYY2J3nb5c', # Cooking
     'https://www.reddit.com/r/gifs/comments/4qfif6/cheetah_running_at_63_mph_102_kph', # Cheetah
-    'https://www.youtube.com/watch?v=-Q3_7T5w4nE', # Excersise 1
-    'https://www.youtube.com/watch?v=5EYY2J3nb5c', # Excersise 2
     'https://imgur.com/t/hummingbird/m2e2Nfa', # Hummingbird
-    'https://www.youtube.com/watch?v=5g1T-ff07kM', # Cooking
 ]
 
 # Mapping of ndim -> permutation to go from tf to pytorch
@@ -146,7 +146,7 @@ WEIGHTS_MAPPING = [
 parser = argparse.ArgumentParser(description='Download and convert the pre-trained weights from tensorflow to pytorch.')
 parser.add_argument('--sample', type=str, default=SAMPLE_VIDEOS_URLS[0], help='Video to test the model on, either a YouTube/http/local path (default: %(default)s). If None, no test is performed.')
 parser.add_argument('--device', type=str, default='cpu', help='Device to use for inference (default: %(default)s).')
-parser.add_argument('--stride', type=int, default=1, help='Temporal stride to use when testing on the sample video (default: %(default)s).')
+parser.add_argument('--stride', type=int, default=5, help='Temporal stride to use when testing on the sample video (default: %(default)s).')
 
 
 if __name__ == '__main__':
@@ -236,13 +236,13 @@ if __name__ == '__main__':
             ret, frame = cap.read()
             if not ret or frame is None:
                 break
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame = transform(frame)
+            frame = transform(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             frames.append(frame)
         cap.release()
 
         # Apply stride and limit the number of frames to 64 multiples
-        frames = torch.stack(frames[::args.stride], axis=0)
+        stride = np.clip(args.stride, 1, len(frames) // 64)
+        frames = torch.stack(frames[::stride], axis=0)
         assert len(frames) >= 64, 'The video is too short, at least 64 frames are needed. Please use a longer video or a smaller stride.'
         frames = frames[:(len(frames) // 64) * 64]
         frames = frames.unflatten(0, (-1, 64)).movedim(1, 2) # Convert to N x C x D x H x W
@@ -265,6 +265,7 @@ if __name__ == '__main__':
         dist = torch.cdist(embeddings, embeddings, p=2) ** 2
         tsm_img = plots.plot_heatmap(dist.numpy(), log_scale=True)
         cv2.imwrite(os.path.join(OUT_VISUALIZATIONS_DIR, 'tsm.png'), tsm_img)
+
 
         # Load tf model
         from repnet.tf_model import get_repnet_model, get_counts

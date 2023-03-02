@@ -11,7 +11,7 @@ def plot_heatmap(dist: np.ndarray, log_scale: bool = False):
     dist = -dist # Invert the distance
     zmin, zmax = np.nanmin(dist), np.nanmax(dist)
     heatmap = (dist - zmin) / (zmax - zmin) # Normalize into [0, 1]
-    heatmap = np.nan_to_num(heatmap, nan=255)
+    heatmap = np.nan_to_num(heatmap, nan=1)
     heatmap = np.clip(heatmap * 255, 0, 255).astype(np.uint8)
     heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_VIRIDIS)
     return heatmap
