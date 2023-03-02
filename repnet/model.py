@@ -111,7 +111,7 @@ class RepNet(nn.Module):
         x = x.softmax(dim=-1)
         # Conv layer on top of the TSM
         x = self.tsm_conv(x.unsqueeze(1))
-        x = x.reshape(batch_size, seq_len, -1) # Flatten channels into N x D x C
+        x = x.movedim(1, 3).reshape(batch_size, seq_len, -1) # Flatten channels into N x D x C
         # Final prediction heads
         period_length = self.period_length_head(x)
         periodicity = self.periodicity_head(x)

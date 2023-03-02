@@ -344,7 +344,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
     return outputs, attention_weights
 
 
-class TransformerLayer(tf.keras.layers.Layer):
+class TransformerLayer(tf.keras.models.Model):
   """Implements a single transformer layer (https://arxiv.org/abs/1706.03762).
   """
 

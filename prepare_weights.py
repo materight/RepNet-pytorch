@@ -248,5 +248,5 @@ if __name__ == '__main__':
         tf_layers_outs = functor([frames.movedim(1, -1).numpy()])
         tf_layers_outs = {relevant_layers[i].name: o for i, o in enumerate(tf_layers_outs)}
 
-    # np.abs(tf_layers_outs['conv2d'].transpose(0,3, 1,2) - layers_outs['tsm_conv.1'].numpy()).max()
+    # np.abs(tf_layers_outs['dense'] - layers_outs['period_length_head.0.input_projection'].numpy()).max()
     print('Done')
