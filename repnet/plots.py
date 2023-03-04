@@ -1,7 +1,6 @@
 """Utility functions for plotting."""
 import cv2
 import numpy as np
-import matplotlib as mpl, matplotlib.pyplot as plt
 from typing import List
 
 
