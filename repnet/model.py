@@ -135,7 +135,7 @@ class RepNet(nn.Module):
         # Generate the final counts and set them to 0 if the periodicity is too low
         period_count = 1 / period_length
         period_count[periodicity_score < periodicity_threshold] = 0
-        period_length = 1 / torch.mean(period_count)
+        period_length = 1 / (torch.mean(period_count) + 1e-6)
         period_count = torch.cumsum(period_count, dim=0)
         confidence = torch.mean(periodicity_score)
         return confidence, period_length, period_count, periodicity_score

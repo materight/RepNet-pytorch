@@ -14,10 +14,11 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 OUT_VISUALIZATIONS_DIR = os.path.join(PROJECT_ROOT, 'visualizations')
 SAMPLE_VIDEOS_URLS = [
     'https://imgur.com/t/hummingbird/m2e2Nfa', # Hummingbird
-    'https://www.youtube.com/watch?v=5EYY2J3nb5c', # Cooking
-    'https://www.reddit.com/r/gifs/comments/4qfif6/cheetah_running_at_63_mph_102_kph', # Cheetah
+    'https://www.youtube.com/watch?v=cMWb7NvWWuI', # Pendulum
     'https://www.youtube.com/watch?v=5g1T-ff07kM', # Excersise
     'https://www.youtube.com/watch?v=-Q3_7T5w4nE', # Excersise
+    'https://www.youtube.com/watch?v=5EYY2J3nb5c', # Cooking
+    'https://www.reddit.com/r/gifs/comments/4qfif6/cheetah_running_at_63_mph_102_kph', # Cheetah
 ]
 
 # Script arguments
