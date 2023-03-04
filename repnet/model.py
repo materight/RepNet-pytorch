@@ -135,8 +135,11 @@ class RepNet(nn.Module):
         # Generate the final counts and set them to 0 if the periodicity is too low
         period_count = 1 / period_length
         period_count[periodicity_score < periodicity_threshold] = 0
+        period_length = 1 / torch.mean(period_count)
         period_count = torch.cumsum(period_count, dim=0)
-        return period_count, periodicity_score
+        confidence = torch.mean(periodicity_score)
+        return confidence, period_length, period_count, periodicity_score
+
 
 
 class TranformerLayer(nn.Module):
@@ -157,7 +160,6 @@ class TranformerLayer(nn.Module):
         x = x + self.pos_encoding
         x = self.transformer_layer(x)
         return x
-
 
 
 
