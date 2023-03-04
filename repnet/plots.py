@@ -2,7 +2,7 @@
 import cv2
 import numpy as np
 from typing import List, Optional
-
+from sklearn.decomposition import PCA
 
 
 def plot_heatmap(dist: np.ndarray, log_scale: bool = False) -> np.ndarray:
@@ -18,6 +18,18 @@ def plot_heatmap(dist: np.ndarray, log_scale: bool = False) -> np.ndarray:
     heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_VIRIDIS)
     return heatmap
 
+
+def plot_pca(embeddings: List[np.ndarray]) -> np.ndarray:
+    """Plot the 1D PCA of the embeddings into an OpenCV image."""
+    projection = PCA(n_components=1).fit_transform(embeddings).flatten()
+    projection = (projection - projection.min()) / (projection.max() - projection.min())
+    h, w = 200, len(projection) * 4
+    img = np.full((h, w, 3), 255, dtype=np.uint8)
+    y = ((1 - projection) * h).astype(np.int32)
+    x = (np.arange(len(y)) / len(y) * w).astype(np.int32)
+    pts = np.stack([x, y], axis=1).reshape((-1, 1, 2))
+    img = cv2.polylines(img, [pts], False, (102, 60, 0), 1, cv2.LINE_AA)
+    return img
 
 
 def plot_repetitions(frames: List[np.ndarray], counts: List[float], periodicity: Optional[List[float]]) -> List[np.ndarray]:

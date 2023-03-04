@@ -13,11 +13,11 @@ from repnet.model import RepNet
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 OUT_VISUALIZATIONS_DIR = os.path.join(PROJECT_ROOT, 'visualizations')
 SAMPLE_VIDEOS_URLS = [
-    'https://www.reddit.com/r/gifs/comments/4qfif6/cheetah_running_at_63_mph_102_kph', # Cheetah
     'https://imgur.com/t/hummingbird/m2e2Nfa', # Hummingbird
+    'https://www.youtube.com/watch?v=5EYY2J3nb5c', # Cooking
+    'https://www.reddit.com/r/gifs/comments/4qfif6/cheetah_running_at_63_mph_102_kph', # Cheetah
     'https://www.youtube.com/watch?v=5g1T-ff07kM', # Excersise
     'https://www.youtube.com/watch?v=-Q3_7T5w4nE', # Excersise
-    'https://www.youtube.com/watch?v=5EYY2J3nb5c', # Cooking
 ]
 
 # Script arguments
@@ -98,7 +98,11 @@ if __name__ == '__main__':
     os.makedirs(OUT_VISUALIZATIONS_DIR, exist_ok=True)
     dist = torch.cdist(best_embeddings, best_embeddings, p=2)**2
     tsm_img = plots.plot_heatmap(dist.numpy(), log_scale=True)
+    pca_img = plots.plot_pca(best_embeddings.numpy())
     cv2.imwrite(os.path.join(OUT_VISUALIZATIONS_DIR, 'tsm.png'), tsm_img)
+    cv2.imwrite(os.path.join(OUT_VISUALIZATIONS_DIR, 'pca.png'), pca_img)
+
+    # Generate video with counts
     rep_frames = plots.plot_repetitions(raw_frames[:len(best_period_count)], best_period_count.tolist(), best_periodicity_score.tolist() if not args.no_score else None)
     video = cv2.VideoWriter(os.path.join(OUT_VISUALIZATIONS_DIR, 'repetitions.mp4'), cv2.VideoWriter_fourcc(*'mp4v'), fps, rep_frames[0].shape[:2][::-1])
     for frame in rep_frames:
