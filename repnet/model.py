@@ -119,18 +119,24 @@ class RepNet(nn.Module):
 
 
     @staticmethod
-    def get_scores(raw_period_length: torch.Tensor, raw_periodicity: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def get_counts(raw_period_length: torch.Tensor, raw_periodicity: torch.Tensor, stride: int,
+                   periodicity_threshold: float = 0.5) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Compute the final scores from the period length and periodicity predictions."""
+        # Repeat the input to account for the stride
+        raw_period_length = raw_period_length.repeat_interleave(stride, dim=0)
+        raw_periodicity = raw_periodicity.repeat_interleave(stride, dim=0)
+        # Compute the final scores in [0, 1]
         periodicity_score = torch.sigmoid(raw_periodicity).squeeze(-1)
-        raw_period_length = torch.softmax(raw_period_length, dim=-1)
-        period_length_confidence, period_length = torch.max(raw_period_length, dim=-1)
-        period_length += 1
-        period_length_confidence[period_length < 3] = 0
-        periodicity_score *= torch.sqrt(period_length_confidence)
-        return period_length, period_length_confidence, periodicity_score
-
-
-
+        period_length_confidence, period_length = torch.max(torch.softmax(raw_period_length, dim=-1), dim=-1)
+        # Remove the confidence for short periods and convert to the correct stride
+        period_length_confidence[period_length < 2] = 0
+        period_length = (period_length + 1) * stride
+        periodicity_score = torch.sqrt(periodicity_score * period_length_confidence)
+        # Generate the final counts and set them to 0 if the periodicity is too low
+        period_count = 1 / period_length
+        period_count[periodicity_score < periodicity_threshold] = 0
+        period_count = torch.cumsum(period_count, dim=0)
+        return period_count, periodicity_score
 
 
 class TranformerLayer(nn.Module):

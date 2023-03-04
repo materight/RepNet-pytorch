@@ -5,7 +5,8 @@ import matplotlib as mpl, matplotlib.pyplot as plt
 from typing import List
 
 
-def plot_heatmap(dist: np.ndarray, log_scale: bool = False):
+
+def plot_heatmap(dist: np.ndarray, log_scale: bool = False) -> np.ndarray:
     """Plot the temporal self-similarity matrix into an OpenCV image."""
     np.fill_diagonal(dist, np.nan)
     if log_scale:
@@ -20,37 +21,23 @@ def plot_heatmap(dist: np.ndarray, log_scale: bool = False):
 
 
 
-def plot_repetitions(frames: List[np.ndarray], counts: List[int], fps: int, out_path: str):
-    """Generate video with repetition counts."""
-    colormap = plt.cm.PuBu
-    sum_counts = np.cumsum(counts)
-    fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(5, 5), tight_layout=True)
-    h, w, _ = np.shape(frames[0])
-    wx, wy, wr = 95 / 112 * w, 17 / 112 * h, 15 / 112 * h
-    tx, ty, ts = 95 / 112 * w, 19 / 112 * h, 35
-    img0 = ax.imshow(frames[0])
-    wedge1 = mpl.patches.Wedge((wx, wy), wr, 0, 0, color=colormap(1.))
-    wedge2 = mpl.patches.Wedge((wx, wy), wr, 0, 0, color=colormap(0.5))
-    ax.add_patch(wedge1)
-    ax.add_patch(wedge2)
-    txt = ax.text(tx, ty, '0', size=ts, ha='center', va='center', alpha=0.9, color='white')
-
-    def _update(i):
-        """Update plot with next frame."""
-        img0.set_data(frames[i])
-        current_rep_count = int(sum_counts[i])
-        wedge1.set_color(colormap(1.0 if current_rep_count % 2 == 0 else 0.5))
-        wedge2.set_color(colormap(0.5 if current_rep_count % 2 == 0 else 1.0))
-        wedge1.set_theta1(-90)
-        wedge1.set_theta2(-90 - 360 * (1 - sum_counts[i] % 1.0))
-        wedge2.set_theta1(-90 - 360 * (1 - sum_counts[i] % 1.0))
-        wedge2.set_theta2(-90)
-        txt.set_text(current_rep_count)
-        ax.grid(False)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        plt.tight_layout()
-
-    anim = mpl.animation.FuncAnimation(fig, _update, frames=len(frames), interval=1000/fps, blit=False)
-    anim.save(out_path, dpi=200)
-    plt.close()
+def plot_repetitions(frames: List[np.ndarray], counts: List[int]) -> List[np.ndarray]:
+    """Generate video with repetition counts and return frames."""
+    blue_dark, blue_light = (102, 60, 0), (215, 175, 121)
+    h, w, _ = frames[0].shape
+    pbar_r = max(int(min(w, h) * 0.1), 20)
+    pbar_c = (pbar_r + 5, pbar_r + 5)
+    txt_s = pbar_r / 30
+    assert len(frames) == len(counts), 'Number of frames and counts must match.'
+    # Draw progress bar
+    out_frames = []
+    for frame, count in zip(frames, counts):
+        frame = frame.copy()
+        color_bg, color_fg = (blue_dark, blue_light) if int(count) % 2 == 0 else (blue_light, blue_dark)
+        frame = cv2.ellipse(frame, pbar_c, (pbar_r, pbar_r), -90, 0, 360, color_bg, -1, cv2.LINE_AA)
+        frame = cv2.ellipse(frame, pbar_c, (pbar_r, pbar_r), -90, 0, 360 * (count % 1.0), color_fg, -1, cv2.LINE_AA)
+        txt_box, _ = cv2.getTextSize(str(int(count)), cv2.FONT_HERSHEY_SIMPLEX, txt_s, 2)
+        txt_c = (pbar_c[0] - txt_box[0] // 2, pbar_c[1] + txt_box[1] // 2)
+        frame = cv2.putText(frame, str(int(count)), txt_c, cv2.FONT_HERSHEY_SIMPLEX, txt_s, (255, 255, 255), 2, cv2.LINE_AA)
+        out_frames.append(frame)
+    return out_frames

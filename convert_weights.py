@@ -1,14 +1,11 @@
-"""Script to download th epre-trained tensorflow weights and convert them to pytorch weights."""
+"""Script to download the pre-trained tensorflow weights and convert them to pytorch weights."""
 import os
-import cv2
 import argparse
 import torch
-import torchvision.transforms as T
 import numpy as np
-import tensorflow as tf
 from tensorflow.python.training import py_checkpoint_reader
 
-from repnet import utils, plots
+from repnet import utils
 from repnet.model import RepNet
 
 
@@ -17,14 +14,6 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 TF_CHECKPOINT_BASE_URL = 'https://storage.googleapis.com/repnet_ckpt'
 TF_CHECKPOINT_FILES = ['checkpoint', 'ckpt-88.data-00000-of-00002', 'ckpt-88.data-00001-of-00002', 'ckpt-88.index']
 OUT_CHECKPOINTS_DIR = os.path.join(PROJECT_ROOT, 'checkpoints')
-OUT_VISUALIZATIONS_DIR = os.path.join(PROJECT_ROOT, 'visualizations')
-SAMPLE_VIDEOS_URLS = [
-    'https://www.youtube.com/watch?v=-Q3_7T5w4nE', # Excersise 1 
-    'https://www.youtube.com/watch?v=5g1T-ff07kM', # Excersise 2
-    'https://imgur.com/t/hummingbird/m2e2Nfa', # Hummingbird
-    'https://www.youtube.com/watch?v=5EYY2J3nb5c', # Cooking
-    'https://www.reddit.com/r/gifs/comments/4qfif6/cheetah_running_at_63_mph_102_kph', # Cheetah
-]
 
 # Mapping of ndim -> permutation to go from tf to pytorch
 WEIGHTS_PERMUTATION = {
@@ -144,9 +133,6 @@ WEIGHTS_MAPPING = [
 
 # Script arguments
 parser = argparse.ArgumentParser(description='Download and convert the pre-trained weights from tensorflow to pytorch.')
-parser.add_argument('--sample', type=str, default=SAMPLE_VIDEOS_URLS[0], help='Video to test the model on, either a YouTube/http/local path (default: %(default)s).')
-parser.add_argument('--stride', type=int, default=3, help='Temporal stride to use when testing on the sample video (default: %(default)s).')
-parser.add_argument('--device', type=str, default='cpu', help='Device to use for inference (default: %(default)s).')
 
 
 if __name__ == '__main__':
@@ -193,8 +179,8 @@ if __name__ == '__main__':
             tf_state_dict[k] = {None: v}
 
     # Convert to a format compatible with PyTorch and save
-    pt_checkpoint_path = os.path.join(OUT_CHECKPOINTS_DIR, 'converted_weights.pth')
-    print(f'Converting to PyTorch format to {pt_checkpoint_path}...')
+    print(f'Converting to PyTorch format...')
+    pt_checkpoint_path = os.path.join(OUT_CHECKPOINTS_DIR, 'pytorch_weights.pth')
     pt_state_dict = {}
     for k_tf, _, k_pt in WEIGHTS_MAPPING:
         assert k_pt not in pt_state_dict
@@ -209,75 +195,9 @@ if __name__ == '__main__':
     torch.save(pt_state_dict, pt_checkpoint_path)
 
     # Initialize the model and try to load the weights
-    print('Loading weights into the model...')
+    print('Check that the weights can be loaded into the model...')
     model = RepNet()
     pt_state_dict = torch.load(pt_checkpoint_path)
     model.load_state_dict(pt_state_dict)
-    model.eval()
 
-    # Test the model on the sample video
-    if args.sample is not None:
-        print(f'Test the model on a sample video from {args.sample}...')
-        video_path = os.path.join(PROJECT_ROOT, 'videos', os.path.basename(args.sample) + '.mp4')
-        if not os.path.exists(video_path):
-            os.makedirs(os.path.dirname(video_path), exist_ok=True)
-            utils.download_file(args.sample, video_path)
-
-        # Read frames
-        transform = T.Compose([
-            T.ToPILImage(),
-            T.Resize((112, 112)),
-            T.ToTensor(),
-            T.Normalize(mean=0.5, std=0.5),
-        ])
-        cap = cv2.VideoCapture(video_path)
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        raw_frames, frames = [], []
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret or frame is None:
-                break
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            raw_frames.append(frame)
-            frames.append(transform(frame))
-        cap.release()
-
-        # Apply stride limit the number of frames to 64 multiples
-        stride = np.clip(args.stride, 1, len(frames) // 64)
-        frames = frames[::stride]
-        assert len(frames) >= 64, 'The video is too short, at least 64 frames are needed.'
-        frames = frames[:(len(frames) // 64) * 64]
-        frames = torch.stack(frames, axis=0).unflatten(0, (-1, 64)).movedim(1, 2) # Convert to N x C x D x H x W
-
-        # Get counts
-        model, frames = model.to(args.device), frames.to(args.device)
-        period_length, periodicity_score, embeddings = [], [], []
-        with torch.no_grad():
-            for i in range(frames.shape[0]):  # Process each batch separately to avoid OOM
-                batch_period_length, batch_periodicity, batch_embeddings = model(frames[i].unsqueeze(0))
-                period_length.append(batch_period_length[0].cpu())
-                periodicity_score.append(batch_periodicity[0].cpu())
-                embeddings.append(batch_embeddings[0].cpu())
-        period_length, periodicity_score, embeddings = torch.cat(period_length), torch.cat(periodicity_score), torch.cat(embeddings)
-        period_length, period_length_confidence, periodicity_score = model.get_scores(period_length, periodicity_score)
-
-        # Generate plots and videos
-        print('Generating plots and result video...')
-        os.makedirs(OUT_VISUALIZATIONS_DIR, exist_ok=True)
-        dist = torch.cdist(embeddings, embeddings, p=2) ** 2
-        tsm_img = plots.plot_heatmap(dist.numpy(), log_scale=True)
-        cv2.imwrite(os.path.join(OUT_VISUALIZATIONS_DIR, 'tsm.png'), tsm_img)
-
-        # Load tf model
-        from repnet.tf_model import get_repnet_model, get_counts
-        from keras import backend as K
-        with tf.device('/cpu:0'):
-            tf_model = get_repnet_model(tf_checkpoint_dir)
-            tf_model.num_frames = 64
-            tf_model.image_size = 112
-            pred_period, pred_score, within_period, per_frame_counts, chosen_stride = get_counts(tf_model, frames.movedim(1, -1).flatten(0, 1).numpy(), strides=[1], batch_size=1, threshold=0.5, within_period_threshold=0.5)
-
-    raw_frames = raw_frames[::stride]
-    raw_frames = raw_frames[:len(raw_frames) // 64 * 64]
-    plots.plot_repetitions(raw_frames, per_frame_counts, fps/stride, os.path.join(OUT_VISUALIZATIONS_DIR, 'repetitions.mp4'))
-    print('Done')
+    print(f'Done. PyTorch weights saved to {pt_checkpoint_path}.')
