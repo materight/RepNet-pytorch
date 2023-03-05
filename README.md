@@ -4,8 +4,8 @@ A PyTorch port with pre-trained weights of **RepNet**, from *Counting Out Time: 
 <div align="center">
   <img src="img/example1.gif" height="170" />
   <img src="img/example2.gif" height="170" />
+  <img src="img/example3.gif" height="170" />
   <img src="img/example4.gif" height="170" />
-  <img src="img/example5.gif" height="170" />
 </div>
 
 ## Get Started
