@@ -2,10 +2,10 @@
 A PyTorch port with pre-trained weights of **RepNet**, from *Counting Out Time: Class Agnostic Video Repetition Counting in the Wild* (CVPR 2020) [[paper]](https://arxiv.org/abs/2006.15418) [[project]](https://sites.google.com/view/repnet) [[notebook]](https://colab.research.google.com/github/google-research/google-research/blob/master/repnet/repnet_colab.ipynb#scrollTo=FUg2vSYhmsT0).
 
 <div align="center">
-  <img src="img/example1.gif" height="170" />
-  <img src="img/example2.gif" height="170" />
-  <img src="img/example3.gif" height="170" />
-  <img src="img/example4.gif" height="170" />
+  <img src="img/example1.gif" height="160" />
+  <img src="img/example2.gif" height="160" />
+  <img src="img/example3.gif" height="160" />
+  <img src="img/example4.gif" height="160" />
 </div>
 
 ## Get Started
