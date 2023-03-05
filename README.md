@@ -34,3 +34,7 @@ python run.py --video_path [video_path]
 ```
 
 Example of generated videos showing the repetition count and the periodicity score:
+<div align="center">
+  <img src="img/example5_score.gif" height="200" />
+  <img src="img/example5_tsm.png" height="200" />
+</div>

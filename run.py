@@ -4,7 +4,6 @@ import cv2
 import argparse
 import torch
 import torchvision.transforms as T
-import numpy as np
 
 from repnet import utils, plots
 from repnet.model import RepNet
@@ -14,6 +13,9 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 OUT_VISUALIZATIONS_DIR = os.path.join(PROJECT_ROOT, 'visualizations')
 SAMPLE_VIDEOS_URLS = [
     'https://imgur.com/t/hummingbird/m2e2Nfa', # Hummingbird
+    'https://www.youtube.com/watch?v=w0JOoC-5_Lk', # Chopping
+    'https://www.youtube.com/watch?v=t9OE3nxnI2Y', # Hammer training
+    'https://www.youtube.com/watch?v=aY3TrpiUOqE', # Bouncing ball
     'https://www.youtube.com/watch?v=5EYY2J3nb5c', # Cooking
     'https://www.reddit.com/r/gifs/comments/4qfif6/cheetah_running_at_63_mph_102_kph', # Cheetah
     'https://www.youtube.com/watch?v=cMWb7NvWWuI', # Pendulum
@@ -26,7 +28,7 @@ SAMPLE_VIDEOS_URLS = [
 parser = argparse.ArgumentParser(description='Run the RepNet model on a given video.')
 parser.add_argument('--weights', type=str, default=os.path.join(PROJECT_ROOT, 'checkpoints', 'pytorch_weights.pth'), help='Path to the model weights (default: %(default)s).')
 parser.add_argument('--video', type=str, default=SAMPLE_VIDEOS_URLS[0], help='Video to test the model on, either a YouTube/http/local path (default: %(default)s).')
-parser.add_argument('--strides', nargs='+', type=int, default=[1, 2, 3, 4], help='Temporal strides to try when testing on the sample video (default: %(default)s).')
+parser.add_argument('--strides', nargs='+', type=int, default=[1, 2, 3, 4, 8], help='Temporal strides to try when testing on the sample video (default: %(default)s).')
 parser.add_argument('--device', type=str, default='cuda', help='Device to use for inference (default: %(default)s).')
 parser.add_argument('--no-score', action='store_true', help='If specified, do not plot the periodicity score.')
 
