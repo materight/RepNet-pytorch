@@ -4,8 +4,8 @@ A PyTorch port with pre-trained weights of **RepNet**, from *Counting Out Time: 
 <div align="center">
   <img src="img/example1.gif" height="200" />
   <img src="img/example2.gif" height="200" />
-  <img src="img/example3.gif" height="200" />
   <img src="img/example4.gif" height="200" />
+  <img src="img/example5.gif" height="200" />
 </div>
 
 ## Get Started
@@ -31,4 +31,4 @@ The script will download a sample video, run inference on it and save the count 
 python run.py --video_path [video_path]
 ```
 
-Examples of generated videos showing the repetition count and the periodicity score:
+Example of generated videos showing the repetition count and the periodicity score:
