@@ -32,8 +32,9 @@ The script will download a sample video, run inference on it and save the count 
 ```bash
 python run.py --video_path [video_path]
 ```
+If the model does not produce good results, try to run the script with more stride values using `--strides`.
 
-Example of generated videos showing the repetition count with the periodicity score and the temporal self-similarity matrix:
+Example of generated videos showing the repetition count, with the periodicity score and the temporal self-similarity matrix:
 <div align="center">
   <img src="img/example5_score.gif" height="200" />
   <img src="img/example5_tsm.png" height="200" />
