@@ -93,8 +93,8 @@ class RepNet(nn.Module):
         )
 
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass. Expected input shape: N x C x D x H x W."""
+    def extract_feat(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass of the encoder network to extract per-frame embeddings. Expected input shape: N x C x D x H x W."""
         batch_size, _, seq_len, _, _ = x.shape
         torch._assert(seq_len == self.num_frames, f'Expected {self.num_frames} frames, got {seq_len}')
         # Extract features frame-by-frame
@@ -104,8 +104,14 @@ class RepNet(nn.Module):
         # Temporal convolution
         x = self.temporal_conv(x)
         x = x.movedim(1, 2) # Convert to N x D x C
-        embeddings = x
-        # Compute temporal self-similarity matrix
+        return x
+
+
+    def period_predictor(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Forward pass of the period predictor network from the extracted embeddings. Expected input shape: N x D x C."""
+        batch_size, seq_len, _ = x.shape
+        torch._assert(seq_len == self.num_frames, f'Expected {self.num_frames} frames, got {seq_len}')
+                # Compute temporal self-similarity matrix
         x = torch.cdist(x, x)**2 # N x D x D
         x = -x / self.temperature
         x = x.softmax(dim=-1)
@@ -115,6 +121,13 @@ class RepNet(nn.Module):
         # Final prediction heads
         period_length = self.period_length_head(x)
         periodicity = self.periodicity_head(x)
+        return period_length, periodicity
+
+
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Forward pass. Expected input shape: N x C x D x H x W."""
+        embeddings = self.extract_feat(x)
+        period_length, periodicity = self.period_predictor(embeddings)
         return period_length, periodicity, embeddings
 
 
