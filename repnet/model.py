@@ -111,7 +111,7 @@ class RepNet(nn.Module):
         """Forward pass of the period predictor network from the extracted embeddings. Expected input shape: N x D x C."""
         batch_size, seq_len, _ = x.shape
         torch._assert(seq_len == self.num_frames, f'Expected {self.num_frames} frames, got {seq_len}')
-                # Compute temporal self-similarity matrix
+        # Compute temporal self-similarity matrix
         x = torch.cdist(x, x)**2 # N x D x D
         x = -x / self.temperature
         x = x.softmax(dim=-1)
