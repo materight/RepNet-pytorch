@@ -18,7 +18,7 @@ cd RepNet-pytorch
 pip install -r requirements.txt
 ```
 
-- Download the TensorFlow pre-trained weights and convert them to PyTorch:
+- To download the TensorFlow pre-trained weights and convert them to PyTorch, run:
 ```bash
 python convert_weights.py
 ```
