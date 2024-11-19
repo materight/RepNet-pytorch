@@ -18,19 +18,16 @@ cd RepNet-pytorch
 pip install -r requirements.txt
 ```
 
-- To download the TensorFlow pre-trained weights and convert them to PyTorch, run:
-```bash
-python convert_weights.py
-```
+- Download the pre-trained weights from [Hugging Face](https://huggingface.co/materight/repnet/blob/main/pytorch_weights.pth).
 
 ## Run inference
 Simply run:
 ```bash
-python run.py
+python run.py --weights [weights_path]
 ```
 The script will download a sample video, run inference on it and save the count visualization. You can also specify a video path as argument (either a local path or a YouTube/HTTP URL):
 ```bash
-python run.py --video_path [video_path]
+python run.py --weights [weights_path] --video_path [video_path]
 ```
 If the model does not produce good results, try to run the script with more stride values using `--strides`.
 
